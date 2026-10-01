@@ -1,6 +1,6 @@
 # Minecraft Bot Dashboard
 
-Web-Dashboard für die Minecraft-Bots auf dem Rootserver. Es ist auf die bestehende `minecraft-root@<id>.service`-Installation zugeschnitten und verwendet `botminuscloud.de` als Standard-Domain.
+Web-Dashboard für die Minecraft-Bots auf dem Rootserver. Es ist auf die bestehende `minecraft-root@<id>.service`-Installation zugeschnitten und verwendet `bot-cloud.de` als Standard-Domain.
 
 ## Funktionen
 
@@ -35,7 +35,7 @@ Die LabyCrafter-Einstellungen werden in der bereits unterstützten Datei `.minec
 
 ## Installation
 
-Der DNS-A/AAAA-Record von `botminuscloud.de` sollte bereits auf den Rootserver zeigen. Danach auf dem Minecraft-Server:
+Der DNS-A/AAAA-Record von `bot-cloud.de` sollte bereits auf den Rootserver zeigen. Danach auf dem Minecraft-Server:
 
 ```bash
 git clone https://github.com/MineDevHDnet/Minecraft-Bot-Dashboard.git
@@ -48,7 +48,7 @@ Der Installer fragt das Dashboard-Passwort ab und richtet Node.js, den Dashboard
 Eigene Domain oder E-Mail für Let's Encrypt:
 
 ```bash
-DOMAIN=botminuscloud.de EMAIL=mail@example.com sudo -E bash install.sh
+DOMAIN=bot-cloud.de EMAIL=mail@example.com sudo -E bash install.sh
 ```
 
 Wenn DNS noch nicht fertig ist:
@@ -57,7 +57,7 @@ Wenn DNS noch nicht fertig ist:
 SKIP_SSL=1 sudo -E bash install.sh
 ```
 
-Später kann HTTPS mit `certbot --nginx -d botminuscloud.de --redirect` aktiviert werden. Danach in `/etc/minecraft-bot-dashboard/dashboard.env` wieder `COOKIE_SECURE=true` setzen und `systemctl restart minecraft-bot-dashboard` ausführen.
+Später kann HTTPS mit `certbot --nginx -d bot-cloud.de --redirect` aktiviert werden. Danach in `/etc/minecraft-bot-dashboard/dashboard.env` wieder `COOKIE_SECURE=true` setzen und `systemctl restart minecraft-bot-dashboard` ausführen.
 
 ## Betrieb
 
