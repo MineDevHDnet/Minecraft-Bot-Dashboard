@@ -1,0 +1,28 @@
+[Unit]
+Description=Minecraft Bot Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bot-dashboard
+Group=bot-dashboard
+WorkingDirectory=/opt/minecraft-bot-dashboard
+EnvironmentFile=/etc/minecraft-bot-dashboard/dashboard.env
+ExecStart=/usr/bin/node /opt/minecraft-bot-dashboard/server.js
+Restart=always
+RestartSec=3
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
