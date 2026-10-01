@@ -227,7 +227,9 @@ function serveStatic(req, res, pathname) {
     }
     res.writeHead(200, {
       'Content-Type': item[1],
-      'Cache-Control': item[0] === 'index.html' ? 'no-cache' : 'public, max-age=3600',
+      // Dashboard assets change together with the backend. Never let an old app.js
+      // stay cached after an update, otherwise newly added buttons have no listeners.
+      'Cache-Control': 'no-store, max-age=0',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'no-referrer',
