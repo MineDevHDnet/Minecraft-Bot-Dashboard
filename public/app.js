@@ -133,7 +133,6 @@ async function refresh() {
   try {
     snapshot = await api('/api/status');
     render();
-    if (currentBotId && !modal.classList.contains('hidden')) openBot(currentBotId, false);
   } catch (e) {
     toast(`Status konnte nicht geladen werden: ${e.message}`, true);
   } finally {
@@ -157,6 +156,7 @@ async function botAction(id, action) {
     });
     await new Promise((r) => setTimeout(r, 900));
     await refresh();
+    if (currentBotId === id && !modal.classList.contains('hidden')) openBot(id, false);
   } catch (e) {
     toast(e.message, true);
   }
