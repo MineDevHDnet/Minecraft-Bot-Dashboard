@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0f17">
+  <title>Bot Cloud</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <main id="loginView" class="login-shell hidden">
+    <section class="login-card">
+      <div class="brand-mark">MC</div>
+      <div>
+        <p class="eyebrow">MineDevHD.net</p>
+        <h1>Bot Cloud</h1>
+        <p class="muted">Minecraft-Bots sicher über den Rootserver verwalten.</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <label for="password">Dashboard-Passwort</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        <button class="button primary wide" type="submit">Anmelden</button>
+        <p id="loginError" class="form-error"></p>
+      </form>
+    </section>
+  </main>
+
+  <div id="dashboardView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand-row">
+        <div class="brand-mark small">MC</div>
+        <div><strong>Bot Cloud</strong><span>MineDevHD.net</span></div>
+      </div>
+      <nav>
+        <button class="nav-item active"><span class="nav-dot"></span>Übersicht</button>
+        <button class="nav-item" id="openSystemButton"><span class="nav-dot"></span>System</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="server-mini"><span id="globalStatusDot" class="status-dot"></span><span id="globalStatusText">Verbinde …</span></div>
+        <button id="logoutButton" class="button ghost wide">Abmelden</button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Rootserver Control</p>
+          <h2>Bot-Übersicht</h2>
+        </div>
+        <div class="top-actions">
+          <span class="refresh-label">Update in <strong id="refreshCountdown">5</strong>s</span>
+          <button id="refreshButton" class="icon-button" title="Jetzt aktualisieren" aria-label="Jetzt aktualisieren">↻</button>
+        </div>
+      </header>
+
+      <section class="metrics" id="metrics">
+        <article class="metric"><span>Installiert</span><strong id="metricInstalled">–</strong><small>Bots</small></article>
+        <article class="metric"><span>Verbunden</span><strong id="metricConnected">–</strong><small>GrieferGames</small></article>
+        <article class="metric"><span>RAM Bots</span><strong id="metricRam">–</strong><small>MB</small></article>
+        <article class="metric"><span>Server Load</span><strong id="metricLoad">–</strong><small id="metricCores">– Kerne</small></article>
+      </section>
+
+      <section class="section-head">
+        <div><h3>Instanzen</h3><p>Live-Status, Steuerung und LabyCrafter-Profile.</p></div>
+        <span id="lastUpdate" class="muted small-text">Noch kein Update</span>
+      </section>
+      <section id="botGrid" class="bot-grid"></section>
+    </section>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <section class="modal-card">
+      <header class="modal-head">
+        <div><p id="modalType" class="eyebrow"></p><h3 id="modalTitle">Bot</h3></div>
+        <button class="icon-button" data-close-modal aria-label="Schließen">×</button>
+      </header>
+      <div id="modalContent"></div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
