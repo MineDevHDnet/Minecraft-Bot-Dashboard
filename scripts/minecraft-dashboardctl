@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+BOTS=(
+  evelyn-veyroxcore
+  evelyn-msr3xie
+  evelyn-rxt3r
+  cb2-bot
+  mangoskanone
+  gamecasino
+)
+
+usage() {
+  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|craft-config|craft-update|system-summary> [args]" >&2
+  exit 2
+}
+
+valid_bot() {
+  local wanted="${1:-}" bot
+  for bot in "${BOTS[@]}"; do
+    [[ "$bot" == "$wanted" ]] && return 0
+  done
+  return 1
+}
+
+require_bot() {
+  [[ $# -ge 1 ]] || usage
+  valid_bot "$1" || { echo "Unknown bot: $1" >&2; exit 2; }
+}
+
+mc_dir() {
+  local id="$1"
+  printf '/var/lib/minecraft-rootserver/instances/%s/launcher/instances/%s/.minecraft' "$id" "$id"
+}
+
+unit_name() {
+  printf 'minecraft-root@%s.service' "$1"
+}
+
+java_pid() {
+  local id="$1"
+  pgrep -f "/instances/$id/launcher/instances/$id/natives" 2>/dev/null | head -n1 || true
+}
+
+is_connected() {
+  local pid="$1"
+  [[ -n "$pid" ]] || return 1
+  ss -tnp state established 2>/dev/null | grep -F "pid=$pid," | grep -q ':25565'
+}
+
+print_status() {
+  local id="$1" root unit pid cpu rss etime active enabled connected=false installed=false
+  root="/var/lib/minecraft-rootserver/instances/$id"
+  unit="$(unit_name "$id")"
+  [[ -d "$root" ]] && installed=true
+  active="$(systemctl is-active "$unit" 2>/dev/null || true)"
+  enabled="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
+  pid="$(java_pid "$id")"
+  cpu=0
+  rss=0
+  etime=0
+  if [[ -n "$pid" ]] && [[ -r "/proc/$pid/stat" ]]; then
+    cpu="$(ps -p "$pid" -o %cpu= 2>/dev/null | tr -d ' ' || echo 0)"
+    rss="$(ps -p "$pid" -o rss= 2>/dev/null | tr -d ' ' || echo 0)"
+    etime="$(ps -p "$pid" -o etimes= 2>/dev/null | tr -d ' ' || echo 0)"
+    is_connected "$pid" && connected=true
+  fi
+  awk -v kb="${rss:-0}" 'BEGIN { printf "memory_mb=%.1f\n", kb/1024 }'
+  printf 'installed=%s\n' "$installed"
+  printf 'active=%s\n' "${active:-unknown}"
+  printf 'enabled=%s\n' "${enabled:-unknown}"
+  printf 'pid=%s\n' "${pid:-0}"
+  printf 'connected=%s\n' "$connected"
+  printf 'cpu=%s\n' "${cpu:-0}"
+  printf 'uptime_seconds=%s\n' "${etime:-0}"
+}
+
+latest_log() {
+  local id="$1" mc candidate
+  local -a candidates
+  mc="$(mc_dir "$id")"
+  case "$id" in
+    mangoskanone|gamecasino)
+      candidates=("$mc/LabyCrafter/logs/latest.log" "$mc/logs/latest.log")
+      ;;
+    cb2-bot)
+      candidates=("$mc/Abyss/logs/latest.log" "$mc/logs/latest.log")
+      ;;
+    *)
+      candidates=("$mc/Evelyn/logs/latest.log" "$mc/logs/latest.log")
+      ;;
+  esac
+  for candidate in "${candidates[@]}"; do
+    [[ -f "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+  done
+  return 1
+}
+
+set_property() {
+  local file="$1" key="$2" value="$3"
+  python3 - "$file" "$key" "$value" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+path.parent.mkdir(parents=True, exist_ok=True)
+lines = path.read_text(encoding='utf-8').splitlines() if path.exists() else []
+out = []
+found = False
+for line in lines:
+    if line.startswith(key + '='):
+        if not found:
+            out.append(f'{key}={value}')
+            found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f'{key}={value}')
+path.write_text('\n'.join(out) + '\n', encoding='utf-8')
+PY
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  system-summary)
+    mem_total_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"
+    mem_available_kb="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+    mem_used_kb=$((mem_total_kb - mem_available_kb))
+    read -r disk_total_mb disk_used_mb < <(df -Pm / | awk 'NR==2 {print $2, $3}')
+    printf 'hostname=%s\n' "$(hostname)"
+    printf 'uptime_seconds=%s\n' "$(cut -d. -f1 /proc/uptime)"
+    printf 'load1=%s\n' "$(awk '{print $1}' /proc/loadavg)"
+    printf 'cpu_cores=%s\n' "$(nproc)"
+    awk -v kb="$mem_used_kb" 'BEGIN { printf "memory_used_mb=%.0f\n", kb/1024 }'
+    awk -v kb="$mem_total_kb" 'BEGIN { printf "memory_total_mb=%.0f\n", kb/1024 }'
+    printf 'disk_used_mb=%s\n' "$disk_used_mb"
+    printf 'disk_total_mb=%s\n' "$disk_total_mb"
+    ;;
+
+  status)
+    require_bot "${2:-}"
+    print_status "$2"
+    ;;
+
+  start|stop|restart)
+    require_bot "${2:-}"
+    systemctl "$cmd" "$(unit_name "$2")"
+    ;;
+
+  logs)
+    require_bot "${2:-}"
+    lines="${3:-120}"
+    [[ "$lines" =~ ^[0-9]+$ ]] || lines=120
+    (( lines < 20 )) && lines=20
+    (( lines > 300 )) && lines=300
+    if log="$(latest_log "$2")"; then
+      tail -n "$lines" "$log"
+    else
+      journalctl -u "$(unit_name "$2")" -n "$lines" --no-pager 2>/dev/null || true
+    fi
+    ;;
+
+  craft-config)
+    require_bot "${2:-}"
+    [[ "$2" == "mangoskanone" || "$2" == "gamecasino" ]] || { echo "Not a LabyCrafter bot" >&2; exit 2; }
+    cfg="$(mc_dir "$2")/LabyCrafter/headless.properties"
+    if [[ -f "$cfg" ]]; then
+      grep -E '^(autoCraftMaterial|autoCraftMode|autoCraftOnJoinEnabled|autoJoinServerSelection|autoJoinHome)=' "$cfg" || true
+    fi
+    ;;
+
+  craft-update)
+    [[ $# -eq 6 ]] || usage
+    id="$2"; material="$3"; mode="$4"; target="$5"; home="$6"
+    require_bot "$id"
+    [[ "$id" == "mangoskanone" || "$id" == "gamecasino" ]] || { echo "Not a LabyCrafter bot" >&2; exit 2; }
+    [[ "$material" =~ ^[A-Za-z0-9._\ -]{1,64}$ ]] || { echo "Invalid material" >&2; exit 2; }
+    [[ "$mode" == "WORKBENCH" || "$mode" == "COMPRESSION" ]] || { echo "Invalid mode" >&2; exit 2; }
+    [[ "$target" =~ ^[A-Za-z0-9._\ -]{1,32}$ ]] || { echo "Invalid target" >&2; exit 2; }
+    [[ "$home" =~ ^/[A-Za-z0-9_./\ -]{1,79}$ ]] || { echo "Invalid home" >&2; exit 2; }
+    cfg="$(mc_dir "$id")/LabyCrafter/headless.properties"
+    [[ -d "$(dirname "$cfg")" ]] || mkdir -p "$(dirname "$cfg")"
+    set_property "$cfg" autoCraftMaterial "$material"
+    set_property "$cfg" autoCraftMode "$mode"
+    set_property "$cfg" autoCraftOnJoinEnabled true
+    set_property "$cfg" autoJoinServerSelection "$target"
+    set_property "$cfg" autoJoinHome "$home"
+    chown minecraft-root:minecraft-root "$cfg"
+    chmod 0600 "$cfg"
+    systemctl restart "$(unit_name "$id")"
+    printf 'updated=%s\n' "$id"
+    ;;
+
+  *) usage ;;
+esac
