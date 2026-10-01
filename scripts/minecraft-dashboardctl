@@ -11,7 +11,7 @@ BOTS=(
 )
 
 usage() {
-  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|craft-config|craft-update|system-summary> [args]" >&2
+  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|clear-logs|craft-config|craft-update|system-summary> [args]" >&2
   exit 2
 }
 
@@ -158,6 +158,34 @@ case "$cmd" in
     else
       journalctl -u "$(unit_name "$2")" -n "$lines" --no-pager 2>/dev/null || true
     fi
+    ;;
+
+  clear-logs)
+    files=0
+    bytes=0
+    for id in "${BOTS[@]}"; do
+      mc="$(mc_dir "$id")"
+      [[ -d "$mc" ]] || continue
+
+      while IFS= read -r -d '' file; do
+        size="$(stat -c '%s' -- "$file" 2>/dev/null || printf '0')"
+        [[ "$size" =~ ^[0-9]+$ ]] || size=0
+        bytes=$((bytes + size))
+        files=$((files + 1))
+
+        case "$file" in
+          *.log)
+            # Keep active file descriptors valid while removing all existing log content.
+            : > "$file"
+            ;;
+          *)
+            rm -f -- "$file"
+            ;;
+        esac
+      done < <(find "$mc" -type f \( -name '*.log' -o -name '*.log.gz' -o -name '*.log.[0-9]*' \) -print0 2>/dev/null)
+    done
+    printf 'files=%s\n' "$files"
+    printf 'bytes=%s\n' "$bytes"
     ;;
 
   craft-config)
