@@ -234,6 +234,32 @@ async function openBot(id, loadLogs = true) {
   });
 }
 
+async function clearAllLogs() {
+  if (!confirm('Wirklich alle Logs aller Bot-Instanzen löschen? Laufende latest.log-Dateien werden geleert, ältere Logdateien werden entfernt.')) return;
+
+  const button = $('#clearAllLogsButton');
+  if (button) button.disabled = true;
+  try {
+    const data = await api('/api/logs/clear', {
+      method: 'POST',
+      body: '{}',
+    });
+    const files = Number(data.files || 0);
+    const bytes = Number(data.bytes || 0);
+    const freed = bytes >= 1024 * 1024
+      ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+      : bytes >= 1024
+        ? `${(bytes / 1024).toFixed(1)} KB`
+        : `${bytes} B`;
+    toast(`${files} Logdatei${files === 1 ? '' : 'en'} geleert/gelöscht · ${freed}`);
+    if (currentBotId && !modal.classList.contains('hidden')) loadBotLogs(currentBotId);
+  } catch (e) {
+    toast(`Logs konnten nicht gelöscht werden: ${e.message}`, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadBotLogs(id) {
   const pre = $('#logOutput');
   if (!pre) return;
@@ -294,6 +320,7 @@ $('#logoutButton').addEventListener('click', async () => {
 });
 
 $('#refreshButton').addEventListener('click', refresh);
+$('#clearAllLogsButton').addEventListener('click', clearAllLogs);
 $('#openSystemButton').addEventListener('click', openSystem);
 
 botGrid.addEventListener('click', (event) => {
