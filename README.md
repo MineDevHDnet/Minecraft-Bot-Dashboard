@@ -71,8 +71,10 @@ Update nach neuen Commits:
 ```bash
 cd /opt/minecraft-bot-dashboard
 git pull
-systemctl restart minecraft-bot-dashboard
+sudo bash update.sh
 ```
+
+`update.sh` tauscht die Webdateien und den privilegierten Helper unter `/usr/local/sbin/minecraft-dashboardctl` aus und startet das Dashboard anschließend neu. Dadurch werden auch neue Dashboard-Aktionen wie die Log-Bereinigung sofort aktiv.
 
 ## Sicherheit
 
