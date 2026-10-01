@@ -23,9 +23,13 @@ if ! id bot-dashboard >/dev/null 2>&1; then
 fi
 
 echo "[2/7] Dashboard installieren ..."
-rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR"
-tar -C "$SRC" --exclude='dashboard.env' -cf - . | tar -C "$APP_DIR" -xf -
+if [[ "$SRC" != "$APP_DIR" ]]; then
+  rm -rf "$APP_DIR"
+  mkdir -p "$APP_DIR"
+  tar -C "$SRC" --exclude='dashboard.env' -cf - . | tar -C "$APP_DIR" -xf -
+else
+  echo "Repository liegt bereits in $APP_DIR; Dateien werden direkt verwendet."
+fi
 chown -R root:bot-dashboard "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 0755 {} +
 find "$APP_DIR" -type f -exec chmod 0644 {} +
