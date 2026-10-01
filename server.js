@@ -274,6 +274,15 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, getStatus());
     }
 
+    if (req.method === 'POST' && pathname === '/api/logs/clear') {
+      const result = parseKV(runControl(['clear-logs'], 30000));
+      return json(res, 200, {
+        ok: true,
+        files: num(result.files),
+        bytes: num(result.bytes),
+      });
+    }
+
     const actionMatch = pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/action$/);
     if (req.method === 'POST' && actionMatch) {
       const bot = BOT_MAP.get(actionMatch[1]);
