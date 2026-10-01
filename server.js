@@ -276,6 +276,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, getStatus());
     }
 
+    if (req.method === 'GET' && pathname === '/api/logs/summary') {
+      const result = parseKV(runControl(['log-summary'], 30000));
+      return json(res, 200, {
+        files: num(result.files),
+        bytes: num(result.bytes),
+      });
+    }
+
     if (req.method === 'POST' && pathname === '/api/logs/clear') {
       const result = parseKV(runControl(['clear-logs'], 30000));
       return json(res, 200, {

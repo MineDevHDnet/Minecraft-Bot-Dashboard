@@ -6,6 +6,7 @@ const dashboardView = $('#dashboardView');
 const botGrid = $('#botGrid');
 const modal = $('#modal');
 const modalContent = $('#modalContent');
+const logDeleteModal = $('#logDeleteModal');
 let snapshot = null;
 let currentBotId = null;
 let refreshRemaining = 5;
@@ -234,11 +235,63 @@ async function openBot(id, loadLogs = true) {
   });
 }
 
-async function clearAllLogs() {
-  if (!confirm('Wirklich alle Logs aller Bot-Instanzen löschen? Laufende latest.log-Dateien werden geleert, ältere Logdateien werden entfernt.')) return;
+function formatBytes(bytes) {
+  const value = Math.max(0, Number(bytes || 0));
+  if (value >= 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${value} B`;
+}
 
-  const button = $('#clearAllLogsButton');
-  if (button) button.disabled = true;
+function closeLogDeleteDialog() {
+  logDeleteModal.classList.add('hidden');
+}
+
+async function openLogDeleteDialog() {
+  const trigger = $('#clearAllLogsButton');
+  const confirmButton = $('#confirmLogDeleteButton');
+  const hint = $('#logDeleteHint');
+
+  trigger.disabled = true;
+  confirmButton.disabled = true;
+  $('#logDeleteFileCount').textContent = '…';
+  $('#logDeleteSize').textContent = '…';
+  hint.textContent = 'Analysiere Logdateien …';
+  hint.classList.remove('error');
+  logDeleteModal.classList.remove('hidden');
+
+  try {
+    const data = await api('/api/logs/summary');
+    const files = Number(data.files || 0);
+    const bytes = Number(data.bytes || 0);
+
+    $('#logDeleteFileCount').textContent = files.toLocaleString('de-DE');
+    $('#logDeleteSize').textContent = formatBytes(bytes);
+
+    if (files > 0) {
+      hint.textContent = 'Laufende .log-Dateien werden geleert, ältere und komprimierte Logs werden entfernt. Die Bots können danach weiterloggen.';
+      confirmButton.disabled = false;
+    } else {
+      hint.textContent = 'Aktuell wurden keine Logdateien gefunden.';
+    }
+  } catch (e) {
+    hint.textContent = `Log-Bestand konnte nicht geladen werden: ${e.message}`;
+    hint.classList.add('error');
+  } finally {
+    trigger.disabled = false;
+  }
+}
+
+async function confirmClearAllLogs() {
+  const confirmButton = $('#confirmLogDeleteButton');
+  const cancelButton = $('#cancelLogDeleteButton');
+  const hint = $('#logDeleteHint');
+
+  confirmButton.disabled = true;
+  cancelButton.disabled = true;
+  hint.textContent = 'Logs werden gelöscht …';
+  hint.classList.remove('error');
+
   try {
     const data = await api('/api/logs/clear', {
       method: 'POST',
@@ -246,17 +299,18 @@ async function clearAllLogs() {
     });
     const files = Number(data.files || 0);
     const bytes = Number(data.bytes || 0);
-    const freed = bytes >= 1024 * 1024
-      ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-      : bytes >= 1024
-        ? `${(bytes / 1024).toFixed(1)} KB`
-        : `${bytes} B`;
-    toast(`${files} Logdatei${files === 1 ? '' : 'en'} geleert/gelöscht · ${freed}`);
+
+    $('#logDeleteFileCount').textContent = '0';
+    $('#logDeleteSize').textContent = '0 B';
+    closeLogDeleteDialog();
+    toast(`${files} Logdatei${files === 1 ? '' : 'en'} geleert/gelöscht · ${formatBytes(bytes)} freigegeben`);
     if (currentBotId && !modal.classList.contains('hidden')) loadBotLogs(currentBotId);
   } catch (e) {
-    toast(`Logs konnten nicht gelöscht werden: ${e.message}`, true);
+    hint.textContent = `Logs konnten nicht gelöscht werden: ${e.message}`;
+    hint.classList.add('error');
+    confirmButton.disabled = false;
   } finally {
-    if (button) button.disabled = false;
+    cancelButton.disabled = false;
   }
 }
 
@@ -320,7 +374,9 @@ $('#logoutButton').addEventListener('click', async () => {
 });
 
 $('#refreshButton').addEventListener('click', refresh);
-$('#clearAllLogsButton').addEventListener('click', clearAllLogs);
+$('#clearAllLogsButton').addEventListener('click', openLogDeleteDialog);
+$('#confirmLogDeleteButton').addEventListener('click', confirmClearAllLogs);
+$('#cancelLogDeleteButton').addEventListener('click', closeLogDeleteDialog);
 $('#openSystemButton').addEventListener('click', openSystem);
 
 botGrid.addEventListener('click', (event) => {
@@ -340,8 +396,17 @@ modal.addEventListener('click', (event) => {
   }
 });
 
+logDeleteModal.addEventListener('click', (event) => {
+  if (event.target.matches('[data-close-log-delete]')) closeLogDeleteDialog();
+});
+
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+  if (event.key !== 'Escape') return;
+  if (!logDeleteModal.classList.contains('hidden')) {
+    closeLogDeleteDialog();
+    return;
+  }
+  if (!modal.classList.contains('hidden')) {
     modal.classList.add('hidden');
     currentBotId = null;
   }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b0f17">
   <title>Bot Cloud</title>
-  <link rel="stylesheet" href="/app.css?v=20261001-1">
+  <link rel="stylesheet" href="/app.css?v=20261001-2">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -83,7 +83,38 @@
     </section>
   </div>
 
+  <div id="logDeleteModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="logDeleteTitle">
+    <div class="modal-backdrop" data-close-log-delete></div>
+    <section class="modal-card confirm-card">
+      <header class="modal-head">
+        <div>
+          <p class="eyebrow">Log-Bereinigung</p>
+          <h3 id="logDeleteTitle">Alle Logs löschen?</h3>
+        </div>
+        <button class="icon-button" data-close-log-delete aria-label="Schließen">×</button>
+      </header>
+      <div class="confirm-content">
+        <p class="muted">Vor dem Löschen wurde der aktuelle Log-Bestand aller Bot-Instanzen geprüft.</p>
+        <div class="log-delete-stats">
+          <div class="log-delete-stat">
+            <span>Logdateien</span>
+            <strong id="logDeleteFileCount">…</strong>
+          </div>
+          <div class="log-delete-stat">
+            <span>Speicherplatz</span>
+            <strong id="logDeleteSize">…</strong>
+          </div>
+        </div>
+        <div id="logDeleteHint" class="confirm-hint">Analysiere Logdateien …</div>
+        <div class="confirm-actions">
+          <button id="cancelLogDeleteButton" class="button ghost" type="button">Abbrechen</button>
+          <button id="confirmLogDeleteButton" class="button danger" type="button" disabled>Alle Logs löschen</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=20261001-1" defer></script>
+  <script src="/app.js?v=20261001-2" defer></script>
 </body>
 </html>

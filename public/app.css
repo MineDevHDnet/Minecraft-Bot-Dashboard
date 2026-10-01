@@ -104,6 +104,17 @@ nav { display: grid; gap: 6px; }
 .modal-head { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 20px 22px 16px; background: rgba(16,22,32,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(18px); }
 .modal-head h3 { margin: 0; font-size: 22px; }
 #modalContent { padding: 20px 22px 24px; }
+
+.confirm-card { width: min(520px,100%); overflow: hidden; }
+.confirm-content { padding: 22px; }
+.confirm-content > p { margin-bottom: 18px; line-height: 1.55; }
+.log-delete-stats { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; margin-bottom: 14px; }
+.log-delete-stat { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.025); }
+.log-delete-stat span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.log-delete-stat strong { display: block; margin-top: 7px; font-size: 24px; letter-spacing: -.03em; }
+.confirm-hint { min-height: 42px; padding: 12px 13px; border: 1px solid rgba(255,112,123,.14); border-radius: 12px; background: rgba(255,112,123,.055); color: #d6dce8; font-size: 12px; line-height: 1.45; }
+.confirm-hint.error { border-color: rgba(255,112,123,.3); color: #ffadb4; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .detail-actions { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .detail-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
 .detail-box { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
@@ -135,6 +146,9 @@ pre { margin: 0; max-height: 330px; overflow: auto; padding: 14px; border: 1px s
   .sidebar-bottom .button { width: auto; }
   .content { padding: 22px 16px 40px; }
   .topbar { align-items: flex-end; }
+  .log-delete-stats { grid-template-columns: 1fr; }
+  .confirm-actions { flex-direction: column-reverse; }
+  .confirm-actions .button { width: 100%; }
   .refresh-label { display: none; }
   .bot-grid, .metrics { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: repeat(2,1fr); }
