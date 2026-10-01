@@ -80,7 +80,7 @@ function verifyPassword(password) {
 }
 
 function clientIp(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  return String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 }
 
 function loginAllowed(req) {
