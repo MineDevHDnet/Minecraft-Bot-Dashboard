@@ -33,7 +33,7 @@ fi
 chown -R root:bot-dashboard "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 0755 {} +
 find "$APP_DIR" -type f -exec chmod 0644 {} +
-chmod 0755 "$APP_DIR/install.sh" "$APP_DIR/scripts/minecraft-dashboardctl"
+chmod 0755 "$APP_DIR/install.sh" "$APP_DIR/update.sh" "$APP_DIR/scripts/minecraft-dashboardctl"
 
 install -o root -g root -m 0755 "$APP_DIR/scripts/minecraft-dashboardctl" /usr/local/sbin/minecraft-dashboardctl
 cat > /etc/sudoers.d/minecraft-bot-dashboard <<'SUDOEOF'
