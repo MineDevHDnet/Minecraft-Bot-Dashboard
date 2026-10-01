@@ -1,0 +1,25 @@
+name: Validate Dashboard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Node.js syntax
+        run: |
+          node --check server.js
+          node --check public/app.js
+      - name: Check shell syntax
+        run: |
+          bash -n install.sh
+          bash -n scripts/minecraft-dashboardctl
+      - name: Check bot config JSON
+        run: python3 -m json.tool config/bots.json >/dev/null
