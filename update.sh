@@ -16,7 +16,6 @@ if [[ "$SRC" != "$APP_DIR" ]]; then
   chown -R root:bot-dashboard "$STAGE"
   find "$STAGE" -type d -exec chmod 0755 {} +
   find "$STAGE" -type f -exec chmod 0644 {} +
-  chmod 0755 "$STAGE/install.sh" "$STAGE/update.sh" "$STAGE/scripts/minecraft-dashboardctl"
 
   if [[ -d "$APP_DIR" ]]; then
     mv "$APP_DIR" "$BACKUP"
@@ -26,11 +25,10 @@ if [[ "$SRC" != "$APP_DIR" ]]; then
   rm -rf "$BACKUP"
   BACKUP=""
 else
-  echo "Repository liegt bereits in $APP_DIR; git pull hat die Webdateien bereits ersetzt."
+  echo "Repository liegt bereits in $APP_DIR; aktueller Checkout wird direkt verwendet."
   chown -R root:bot-dashboard "$APP_DIR"
   find "$APP_DIR" -type d -exec chmod 0755 {} +
   find "$APP_DIR" -type f -exec chmod 0644 {} +
-  chmod 0755 "$APP_DIR/install.sh" "$APP_DIR/update.sh" "$APP_DIR/scripts/minecraft-dashboardctl"
 fi
 
 echo "[2/4] Root-Helper austauschen ..."
