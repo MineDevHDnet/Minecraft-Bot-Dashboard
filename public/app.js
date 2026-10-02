@@ -132,6 +132,7 @@ function render() {
           ? '<button class="button danger" data-action="stop">Stop</button>'
           : '<button class="button primary" data-action="start">Start</button>'}
         <button class="button secondary" data-action="restart">Restart</button>
+        <button class="button ghost" data-action="files">Dateien</button>
         <button class="button ghost" data-action="details">Verwalten</button>
       </div>
     </article>`;
@@ -828,6 +829,7 @@ botGrid.addEventListener('click', (event) => {
   const id = card.dataset.bot;
   const action = button.dataset.action;
   if (action === 'details') openBot(id);
+  else if (action === 'files') openFileManager(id);
   else requestBotAction(id, action);
 });
 
