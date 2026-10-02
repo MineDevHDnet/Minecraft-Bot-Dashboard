@@ -7,8 +7,10 @@ const botGrid = $('#botGrid');
 const modal = $('#modal');
 const modalContent = $('#modalContent');
 const logDeleteModal = $('#logDeleteModal');
+const actionConfirmModal = $('#actionConfirmModal');
 let snapshot = null;
 let currentBotId = null;
+let pendingBotAction = null;
 let refreshRemaining = 5;
 let refreshBusy = false;
 let toastTimer = null;
@@ -143,11 +145,51 @@ async function refresh() {
   }
 }
 
+function closeActionConfirmDialog() {
+  actionConfirmModal.classList.add('hidden');
+  pendingBotAction = null;
+}
+
+function requestBotAction(id, action) {
+  if (action !== 'stop' && action !== 'restart') {
+    botAction(id, action);
+    return;
+  }
+
+  const bot = snapshot?.bots.find((b) => b.id === id);
+  if (!bot) return;
+
+  const isStop = action === 'stop';
+  pendingBotAction = { id, action };
+
+  $('#actionConfirmEyebrow').textContent = isStop ? 'Bot stoppen' : 'Bot neu starten';
+  $('#actionConfirmTitle').textContent = isStop
+    ? `${bot.name} wirklich stoppen?`
+    : `${bot.name} wirklich neu starten?`;
+  $('#actionConfirmText').textContent = isStop
+    ? 'Die Bot-Instanz wird beendet und bleibt gestoppt, bis sie wieder manuell gestartet wird.'
+    : 'Die Bot-Instanz wird kurz beendet und anschließend automatisch wieder gestartet.';
+
+  const confirmButton = $('#confirmBotActionButton');
+  confirmButton.textContent = isStop ? 'Bot stoppen' : 'Bot neu starten';
+  confirmButton.className = `button ${isStop ? 'danger' : 'secondary'}`;
+  confirmButton.disabled = false;
+  $('#cancelBotActionButton').disabled = false;
+
+  actionConfirmModal.classList.remove('hidden');
+}
+
+async function confirmBotAction() {
+  if (!pendingBotAction) return;
+  const { id, action } = pendingBotAction;
+
+  closeActionConfirmDialog();
+  await botAction(id, action);
+}
+
 async function botAction(id, action) {
   const bot = snapshot?.bots.find((b) => b.id === id);
   if (!bot) return;
-  if ((action === 'stop' || action === 'restart') &&
-      !confirm(`${bot.name} wirklich ${action === 'stop' ? 'stoppen' : 'neu starten'}?`)) return;
 
   toast(`${bot.name}: ${action === 'start' ? 'Start' : action === 'stop' ? 'Stop' : 'Restart'} wird ausgeführt …`);
   try {
@@ -210,7 +252,7 @@ async function openBot(id, loadLogs = true) {
   if (loadLogs) loadBotLogs(id);
   $('#reloadLogs')?.addEventListener('click', () => loadBotLogs(id));
   modalContent.querySelectorAll('[data-modal-action]').forEach((button) => {
-    button.addEventListener('click', () => botAction(id, button.dataset.modalAction));
+    button.addEventListener('click', () => requestBotAction(id, button.dataset.modalAction));
   });
 
   $('#crafterForm')?.addEventListener('submit', async (event) => {
@@ -377,6 +419,8 @@ $('#refreshButton').addEventListener('click', refresh);
 $('#clearAllLogsButton').addEventListener('click', openLogDeleteDialog);
 $('#confirmLogDeleteButton').addEventListener('click', confirmClearAllLogs);
 $('#cancelLogDeleteButton').addEventListener('click', closeLogDeleteDialog);
+$('#confirmBotActionButton').addEventListener('click', confirmBotAction);
+$('#cancelBotActionButton').addEventListener('click', closeActionConfirmDialog);
 $('#openSystemButton').addEventListener('click', openSystem);
 
 botGrid.addEventListener('click', (event) => {
@@ -386,7 +430,7 @@ botGrid.addEventListener('click', (event) => {
   const id = card.dataset.bot;
   const action = button.dataset.action;
   if (action === 'details') openBot(id);
-  else botAction(id, action);
+  else requestBotAction(id, action);
 });
 
 modal.addEventListener('click', (event) => {
@@ -400,8 +444,16 @@ logDeleteModal.addEventListener('click', (event) => {
   if (event.target.matches('[data-close-log-delete]')) closeLogDeleteDialog();
 });
 
+actionConfirmModal.addEventListener('click', (event) => {
+  if (event.target.matches('[data-close-action-confirm]')) closeActionConfirmDialog();
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  if (!actionConfirmModal.classList.contains('hidden')) {
+    closeActionConfirmDialog();
+    return;
+  }
   if (!logDeleteModal.classList.contains('hidden')) {
     closeLogDeleteDialog();
     return;
