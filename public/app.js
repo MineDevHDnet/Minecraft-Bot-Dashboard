@@ -8,9 +8,12 @@ const modal = $('#modal');
 const modalContent = $('#modalContent');
 const logDeleteModal = $('#logDeleteModal');
 const actionConfirmModal = $('#actionConfirmModal');
+const uploadModal = $('#uploadModal');
 let snapshot = null;
 let currentBotId = null;
 let pendingBotAction = null;
+let uploadFiles = [];
+let uploadBusy = false;
 let refreshRemaining = 5;
 let refreshBusy = false;
 let toastTimer = null;
@@ -285,6 +288,209 @@ function formatBytes(bytes) {
   return `${value} B`;
 }
 
+function selectedUploadBots() {
+  return [...document.querySelectorAll('#uploadBotList input[type="checkbox"]:checked')].map((input) => input.value);
+}
+
+function updateUploadBotToggle() {
+  const checkboxes = [...document.querySelectorAll('#uploadBotList input[type="checkbox"]')];
+  const checked = checkboxes.filter((input) => input.checked).length;
+  $('#toggleAllUploadBotsButton').textContent = checked && checked === checkboxes.length
+    ? 'Alle abwählen'
+    : 'Alle auswählen';
+}
+
+function renderUploadFiles() {
+  const list = $('#uploadFileList');
+  if (!uploadFiles.length) {
+    list.innerHTML = '<div class="upload-empty">Noch keine Dateien ausgewählt.</div>';
+    return;
+  }
+
+  list.innerHTML = uploadFiles.map((file, index) => `
+    <div class="upload-file-row">
+      <div class="upload-file-icon">↥</div>
+      <div class="upload-file-meta">
+        <strong>${escapeHtml(file.name)}</strong>
+        <span>${formatBytes(file.size)}</span>
+      </div>
+      <button class="icon-button upload-remove" type="button" data-remove-upload-file="${index}" aria-label="Datei entfernen">×</button>
+    </div>
+  `).join('');
+}
+
+function addUploadFiles(files) {
+  const incoming = [...files];
+  let rejected = 0;
+
+  for (const file of incoming) {
+    if (!file.size || file.size > 256 * 1024 * 1024) {
+      rejected += 1;
+      continue;
+    }
+    const duplicate = uploadFiles.some((item) =>
+      item.name === file.name && item.size === file.size && item.lastModified === file.lastModified);
+    if (!duplicate) uploadFiles.push(file);
+  }
+
+  renderUploadFiles();
+  $('#uploadFileInput').value = '';
+  if (rejected) toast(`${rejected} Datei(en) übersprungen: leer oder größer als 256 MB.`, true);
+}
+
+function uploadTarget() {
+  const preset = $('#uploadTargetPreset').value;
+  if (preset !== 'custom') return preset;
+  return $('#customUploadTarget').value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+}
+
+function validClientUploadTarget(target) {
+  if (!target) return true;
+  if (target.length > 180 || !/^[A-Za-z0-9._ /-]+$/.test(target)) return false;
+  return !target.split('/').some((part) => !part || part === '.' || part === '..');
+}
+
+function openUploadDialog() {
+  const bots = snapshot?.bots || [];
+  if (!bots.length) {
+    toast('Es sind aktuell keine installierten Bots verfügbar.', true);
+    return;
+  }
+
+  uploadFiles = [];
+  uploadBusy = false;
+  renderUploadFiles();
+  $('#uploadTargetPreset').value = '';
+  $('#customUploadTarget').value = '';
+  $('#customUploadTargetWrap').classList.add('hidden');
+  $('#uploadProgressWrap').classList.add('hidden');
+  $('#uploadProgressBar').style.width = '0%';
+  $('#uploadProgressPercent').textContent = '0%';
+  $('#uploadProgressText').textContent = 'Upload wird vorbereitet …';
+  $('#startUploadButton').disabled = false;
+  $('#cancelUploadButton').disabled = false;
+
+  $('#uploadBotList').innerHTML = bots.map((bot) => `
+    <label class="upload-bot-option">
+      <input type="checkbox" value="${escapeHtml(bot.id)}">
+      <span class="upload-checkmark"></span>
+      <span class="upload-bot-copy">
+        <strong>${escapeHtml(bot.name)}</strong>
+        <small>${escapeHtml(bot.label)} · ${escapeHtml(bot.id)}</small>
+      </span>
+    </label>
+  `).join('');
+  updateUploadBotToggle();
+  uploadModal.classList.remove('hidden');
+}
+
+function closeUploadDialog() {
+  if (uploadBusy) return;
+  uploadModal.classList.add('hidden');
+}
+
+function uploadSingleFile(file, botIds, target, fileIndex, totalFiles) {
+  return new Promise((resolve, reject) => {
+    const params = new URLSearchParams({
+      bots: botIds.join(','),
+      target,
+      filename: file.name,
+    });
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/upload?${params.toString()}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (!event.lengthComputable) return;
+      const fileProgress = event.loaded / event.total;
+      const overall = ((fileIndex + fileProgress) / totalFiles) * 100;
+      const percent = Math.max(0, Math.min(100, Math.round(overall)));
+      $('#uploadProgressBar').style.width = `${percent}%`;
+      $('#uploadProgressPercent').textContent = `${percent}%`;
+      $('#uploadProgressText').textContent = `${file.name} wird hochgeladen …`;
+    });
+
+    xhr.addEventListener('load', () => {
+      let payload = {};
+      try { payload = JSON.parse(xhr.responseText || '{}'); } catch {}
+
+      if (xhr.status === 401) {
+        showLogin();
+        reject(new Error('Sitzung abgelaufen'));
+        return;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300 && payload.ok) {
+        resolve(payload);
+        return;
+      }
+
+      if (Array.isArray(payload.failed) && payload.failed.length) {
+        reject(new Error(`Upload teilweise fehlgeschlagen: ${payload.failed.map((item) => item.id).join(', ')}`));
+        return;
+      }
+
+      reject(new Error(payload.message || payload.error || `HTTP ${xhr.status}`));
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Upload')));
+    xhr.send(file);
+  });
+}
+
+async function startUpload() {
+  if (uploadBusy) return;
+  if (!uploadFiles.length) {
+    toast('Bitte zuerst mindestens eine Datei auswählen.', true);
+    return;
+  }
+
+  const botIds = selectedUploadBots();
+  if (!botIds.length) {
+    toast('Bitte mindestens einen Ziel-Bot auswählen.', true);
+    return;
+  }
+
+  const target = uploadTarget();
+  if (!validClientUploadTarget(target)) {
+    toast('Der Zielordner ist ungültig. Verwende nur einen relativen Unterordner ohne "..".', true);
+    return;
+  }
+
+  uploadBusy = true;
+  $('#startUploadButton').disabled = true;
+  $('#cancelUploadButton').disabled = true;
+  $('#chooseUploadFilesButton').disabled = true;
+  $('#toggleAllUploadBotsButton').disabled = true;
+  $('#uploadProgressWrap').classList.remove('hidden');
+
+  try {
+    for (let index = 0; index < uploadFiles.length; index += 1) {
+      await uploadSingleFile(uploadFiles[index], botIds, target, index, uploadFiles.length);
+      const percent = Math.round(((index + 1) / uploadFiles.length) * 100);
+      $('#uploadProgressBar').style.width = `${percent}%`;
+      $('#uploadProgressPercent').textContent = `${percent}%`;
+    }
+
+    $('#uploadProgressText').textContent = 'Upload abgeschlossen.';
+    const fileCount = uploadFiles.length;
+    const botCount = botIds.length;
+    uploadBusy = false;
+    uploadModal.classList.add('hidden');
+    toast(`${fileCount} Datei${fileCount === 1 ? '' : 'en'} an ${botCount} Bot${botCount === 1 ? '' : 's'} hochgeladen.`);
+  } catch (error) {
+    $('#uploadProgressText').textContent = `Fehler: ${error.message}`;
+    toast(error.message, true);
+  } finally {
+    uploadBusy = false;
+    $('#startUploadButton').disabled = false;
+    $('#cancelUploadButton').disabled = false;
+    $('#chooseUploadFilesButton').disabled = false;
+    $('#toggleAllUploadBotsButton').disabled = false;
+  }
+}
+
 function closeLogDeleteDialog() {
   logDeleteModal.classList.add('hidden');
 }
@@ -416,6 +622,28 @@ $('#logoutButton').addEventListener('click', async () => {
 });
 
 $('#refreshButton').addEventListener('click', refresh);
+$('#openUploadButton').addEventListener('click', openUploadDialog);
+$('#chooseUploadFilesButton').addEventListener('click', () => $('#uploadFileInput').click());
+$('#uploadFileInput').addEventListener('change', (event) => addUploadFiles(event.target.files));
+$('#uploadFileList').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-remove-upload-file]');
+  if (!button || uploadBusy) return;
+  uploadFiles.splice(Number(button.dataset.removeUploadFile), 1);
+  renderUploadFiles();
+});
+$('#uploadBotList').addEventListener('change', updateUploadBotToggle);
+$('#toggleAllUploadBotsButton').addEventListener('click', () => {
+  const checkboxes = [...document.querySelectorAll('#uploadBotList input[type="checkbox"]')];
+  const allSelected = checkboxes.length && checkboxes.every((input) => input.checked);
+  checkboxes.forEach((input) => { input.checked = !allSelected; });
+  updateUploadBotToggle();
+});
+$('#uploadTargetPreset').addEventListener('change', (event) => {
+  $('#customUploadTargetWrap').classList.toggle('hidden', event.target.value !== 'custom');
+  if (event.target.value === 'custom') setTimeout(() => $('#customUploadTarget').focus(), 20);
+});
+$('#startUploadButton').addEventListener('click', startUpload);
+$('#cancelUploadButton').addEventListener('click', closeUploadDialog);
 $('#clearAllLogsButton').addEventListener('click', openLogDeleteDialog);
 $('#confirmLogDeleteButton').addEventListener('click', confirmClearAllLogs);
 $('#cancelLogDeleteButton').addEventListener('click', closeLogDeleteDialog);
@@ -448,8 +676,39 @@ actionConfirmModal.addEventListener('click', (event) => {
   if (event.target.matches('[data-close-action-confirm]')) closeActionConfirmDialog();
 });
 
+uploadModal.addEventListener('click', (event) => {
+  if (event.target.matches('[data-close-upload]')) closeUploadDialog();
+});
+
+const uploadDropZone = $('#uploadDropZone');
+['dragenter', 'dragover'].forEach((name) => {
+  uploadDropZone.addEventListener(name, (event) => {
+    event.preventDefault();
+    if (!uploadBusy) uploadDropZone.classList.add('dragging');
+  });
+});
+['dragleave', 'drop'].forEach((name) => {
+  uploadDropZone.addEventListener(name, (event) => {
+    event.preventDefault();
+    uploadDropZone.classList.remove('dragging');
+  });
+});
+uploadDropZone.addEventListener('drop', (event) => {
+  if (!uploadBusy) addUploadFiles(event.dataTransfer.files);
+});
+uploadDropZone.addEventListener('keydown', (event) => {
+  if ((event.key === 'Enter' || event.key === ' ') && !uploadBusy) {
+    event.preventDefault();
+    $('#uploadFileInput').click();
+  }
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  if (!uploadModal.classList.contains('hidden')) {
+    closeUploadDialog();
+    return;
+  }
   if (!actionConfirmModal.classList.contains('hidden')) {
     closeActionConfirmDialog();
     return;
