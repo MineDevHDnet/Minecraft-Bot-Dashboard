@@ -391,7 +391,14 @@ const server = http.createServer(async (req, res) => {
 
       let upload;
       try {
-        upload = await receiveUpload(req);
+        try {
+          upload = await receiveUpload(req);
+        } catch (error) {
+          if (error.message === 'upload_too_large') return json(res, 413, { error: 'upload_too_large' });
+          if (error.message === 'empty_upload') return json(res, 400, { error: 'empty_upload' });
+          if (error.message === 'upload_aborted') return json(res, 400, { error: 'upload_aborted' });
+          throw error;
+        }
         const copied = [];
         const failed = [];
 
