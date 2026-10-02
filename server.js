@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const { spawnSync } = require('child_process');
 
 const ROOT = __dirname;
@@ -14,6 +15,7 @@ const PASSWORD_HASH = process.env.DASHBOARD_PASSWORD_HASH || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const COOKIE_SECURE = process.env.COOKIE_SECURE !== 'false';
 const SESSION_TTL = 12 * 60 * 60;
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 256 * 1024 * 1024);
 const BOTS = JSON.parse(fs.readFileSync(process.env.BOTS_FILE || path.join(ROOT, 'config', 'bots.json'), 'utf8'));
 const BOT_MAP = new Map(BOTS.map((bot) => [bot.id, bot]));
 const loginAttempts = new Map();
@@ -123,6 +125,96 @@ function readBody(req) {
       try { resolve(JSON.parse(body)); } catch { reject(new Error('invalid_json')); }
     });
     req.on('error', reject);
+  });
+}
+
+function validUploadTarget(value) {
+  const target = String(value || '').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!target) return '';
+  if (target.length > 180 || target.includes('\0')) throw new Error('invalid_upload_target');
+  const parts = target.split('/');
+  if (parts.some((part) => !part || part === '.' || part === '..')) throw new Error('invalid_upload_target');
+  if (!/^[A-Za-z0-9._ /-]+$/.test(target)) throw new Error('invalid_upload_target');
+  return target;
+}
+
+function validUploadFileName(value) {
+  const name = String(value || '').trim();
+  if (!name || name.length > 180 || name === '.' || name === '..' || /[\\/\0]/.test(name)) {
+    throw new Error('invalid_upload_filename');
+  }
+  return name;
+}
+
+function receiveUpload(req) {
+  return new Promise(async (resolve, reject) => {
+    const declared = Number(req.headers['content-length'] || 0);
+    if (declared > MAX_UPLOAD_BYTES) {
+      reject(new Error('upload_too_large'));
+      req.resume();
+      return;
+    }
+
+    let dir;
+    let file;
+    let stream;
+    let bytes = 0;
+    let settled = false;
+
+    const cleanup = async () => {
+      if (file) await fs.promises.rm(file, { force: true }).catch(() => {});
+      if (dir) await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    };
+
+    const fail = async (error) => {
+      if (settled) return;
+      settled = true;
+      try { stream?.destroy(); } catch {}
+      await cleanup();
+      reject(error);
+    };
+
+    try {
+      dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'minecraft-dashboard-upload-'));
+      file = path.join(dir, 'payload');
+      stream = fs.createWriteStream(file, { flags: 'wx', mode: 0o600 });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    stream.on('error', fail);
+    req.on('error', fail);
+    req.on('aborted', () => fail(new Error('upload_aborted')));
+
+    req.on('data', (chunk) => {
+      bytes += chunk.length;
+      if (bytes > MAX_UPLOAD_BYTES) {
+        fail(new Error('upload_too_large'));
+        req.destroy();
+        return;
+      }
+      if (!stream.write(chunk)) req.pause();
+    });
+    stream.on('drain', () => req.resume());
+
+    req.on('end', () => {
+      if (settled) return;
+      stream.end(async () => {
+        if (settled) return;
+        settled = true;
+        if (!bytes) {
+          await cleanup();
+          reject(new Error('empty_upload'));
+          return;
+        }
+        resolve({
+          file,
+          bytes,
+          cleanup,
+        });
+      });
+    });
   });
 }
 
@@ -274,6 +366,65 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && pathname === '/api/status') {
       return json(res, 200, getStatus());
+    }
+
+    if (req.method === 'POST' && pathname === '/api/upload') {
+      const botIds = String(url.searchParams.get('bots') || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      const uniqueBotIds = [...new Set(botIds)];
+      if (!uniqueBotIds.length || uniqueBotIds.length > BOTS.length) {
+        return json(res, 400, { error: 'invalid_bot_selection' });
+      }
+      const bots = uniqueBotIds.map((id) => BOT_MAP.get(id));
+      if (bots.some((bot) => !bot)) return json(res, 400, { error: 'invalid_bot_selection' });
+
+      let fileName;
+      let target;
+      try {
+        fileName = validUploadFileName(url.searchParams.get('filename'));
+        target = validUploadTarget(url.searchParams.get('target'));
+      } catch (error) {
+        return json(res, 400, { error: error.message });
+      }
+
+      let upload;
+      try {
+        upload = await receiveUpload(req);
+        const copied = [];
+        const failed = [];
+
+        for (const bot of bots) {
+          try {
+            runControl(['upload', bot.id, upload.file, target, fileName], 60000);
+            copied.push(bot.id);
+          } catch (error) {
+            failed.push({ id: bot.id, message: String(error.message || error) });
+          }
+        }
+
+        if (failed.length) {
+          return json(res, copied.length ? 207 : 500, {
+            ok: false,
+            fileName,
+            target,
+            bytes: upload.bytes,
+            copied,
+            failed,
+          });
+        }
+
+        return json(res, 200, {
+          ok: true,
+          fileName,
+          target,
+          bytes: upload.bytes,
+          copied,
+        });
+      } finally {
+        if (upload) await upload.cleanup();
+      }
     }
 
     if (req.method === 'GET' && pathname === '/api/logs/summary') {
