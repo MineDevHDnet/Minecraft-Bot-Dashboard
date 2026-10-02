@@ -42,10 +42,26 @@ install -o root -g root -m 0644 "$APP_DIR/systemd/minecraft-bot-dashboard.servic
 systemctl daemon-reload
 systemctl restart minecraft-bot-dashboard.service
 
-echo "[4/4] Nginx prüfen ..."
+echo "[4/4] Nginx aktualisieren ..."
+NGINX_SITE="/etc/nginx/sites-available/minecraft-bot-dashboard"
+if [[ -f "$NGINX_SITE" ]]; then
+  if grep -qE '^[[:space:]]*client_max_body_size[[:space:]]+' "$NGINX_SITE"; then
+    sed -i -E 's/^[[:space:]]*client_max_body_size[[:space:]]+[^;]+;/    client_max_body_size 256m;/' "$NGINX_SITE"
+  else
+    sed -i '/server_name /a\    client_max_body_size 256m;' "$NGINX_SITE"
+  fi
+
+  if grep -qE '^[[:space:]]*client_body_timeout[[:space:]]+' "$NGINX_SITE"; then
+    sed -i -E 's/^[[:space:]]*client_body_timeout[[:space:]]+[^;]+;/    client_body_timeout 120s;/' "$NGINX_SITE"
+  else
+    sed -i '/client_max_body_size /a\    client_body_timeout 120s;' "$NGINX_SITE"
+  fi
+
+  sed -i -E 's/^[[:space:]]*proxy_read_timeout[[:space:]]+30s;/        proxy_read_timeout 120s;/' "$NGINX_SITE"
+fi
 nginx -t
 systemctl reload nginx
 
 echo
-echo "Update fertig: Webdateien und Root-Helper wurden ausgetauscht."
+echo "Update fertig: Webdateien, Root-Helper und Upload-Limits wurden aktualisiert."
 echo "Dashboard: https://bot-cloud.de"
