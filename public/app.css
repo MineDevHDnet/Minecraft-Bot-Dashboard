@@ -169,6 +169,25 @@ pre { margin: 0; max-height: 330px; overflow: auto; padding: 14px; border: 1px s
 .toast.error { border-color: rgba(255,112,123,.3); color: #ffc0c5; }
 .empty { padding: 30px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); text-align: center; }
 
+.file-manager-card { width: min(900px,100%); }
+.file-manager-content { padding: 18px 22px 24px; }
+.file-manager-toolbar { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; gap: 8px; align-items: center; margin-bottom: 12px; }
+.file-manager-path { min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.025); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px/1.3 "SFMono-Regular", Consolas, monospace; color: var(--muted); }
+.file-manager-path strong { color: #dbe3ef; font-weight: 700; }
+.file-manager-hint { min-height: 34px; padding: 8px 2px; color: var(--muted); font-size: 11px; }
+.file-manager-hint.error { color: var(--red); }
+.file-manager-list { display: grid; gap: 7px; max-height: 560px; overflow: auto; }
+.file-manager-row { display: grid; grid-template-columns: 38px minmax(0,1fr) auto auto; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.022); }
+.file-manager-row:hover { border-color: rgba(124,156,255,.2); background: rgba(124,156,255,.035); }
+.file-manager-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: rgba(124,156,255,.08); font-size: 15px; }
+.file-manager-name { min-width: 0; }
+.file-manager-name strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.file-manager-name span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.file-manager-meta { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.file-manager-open { padding: 7px 10px; }
+.file-manager-delete { padding: 7px 10px; }
+.file-delete-modal { z-index: 35; }
+
 @media (max-width: 1100px) {
   .bot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -186,6 +205,10 @@ pre { margin: 0; max-height: 330px; overflow: auto; padding: 14px; border: 1px s
   .confirm-actions { flex-direction: column-reverse; }
   .confirm-actions .button { width: 100%; }
   .upload-bot-list, .upload-target-grid { grid-template-columns: 1fr; }
+  .file-manager-toolbar { grid-template-columns: 1fr 1fr; }
+  .file-manager-path { grid-column: 1 / -1; order: -1; }
+  .file-manager-row { grid-template-columns: 34px minmax(0,1fr) auto; }
+  .file-manager-meta { display: none; }
   .upload-section-head { align-items: flex-end; }
   .refresh-label { display: none; }
   .bot-grid, .metrics { grid-template-columns: 1fr; }
