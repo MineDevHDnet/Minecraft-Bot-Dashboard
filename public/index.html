@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b0f17">
   <title>Bot Cloud</title>
-  <link rel="stylesheet" href="/app.css?v=20261002-1">
+  <link rel="stylesheet" href="/app.css?v=20261002-2">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -202,7 +202,53 @@
     </section>
   </div>
 
+  <div id="fileManagerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="fileManagerTitle">
+    <div class="modal-backdrop" data-close-file-manager></div>
+    <section class="modal-card file-manager-card">
+      <header class="modal-head">
+        <div>
+          <p id="fileManagerEyebrow" class="eyebrow">Dateiverwaltung</p>
+          <h3 id="fileManagerTitle">Dateien</h3>
+        </div>
+        <button class="icon-button" data-close-file-manager aria-label="Schließen">×</button>
+      </header>
+      <div class="file-manager-content">
+        <div class="file-manager-toolbar">
+          <button id="fileManagerUpButton" class="button ghost" type="button">↑ Hoch</button>
+          <div class="file-manager-path">
+            <span>.minecraft/</span><strong id="fileManagerPath">.</strong>
+          </div>
+          <button id="fileManagerRefreshButton" class="button ghost" type="button">Aktualisieren</button>
+          <button id="fileManagerUploadButton" class="button primary" type="button">Hier hochladen</button>
+        </div>
+        <div id="fileManagerHint" class="file-manager-hint">Lade Verzeichnis …</div>
+        <div id="fileManagerList" class="file-manager-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="fileDeleteModal" class="modal file-delete-modal hidden" role="dialog" aria-modal="true" aria-labelledby="fileDeleteTitle">
+    <div class="modal-backdrop" data-close-file-delete></div>
+    <section class="modal-card confirm-card">
+      <header class="modal-head">
+        <div>
+          <p class="eyebrow">Datei löschen</p>
+          <h3 id="fileDeleteTitle">Datei wirklich löschen?</h3>
+        </div>
+        <button class="icon-button" data-close-file-delete aria-label="Schließen">×</button>
+      </header>
+      <div class="confirm-content">
+        <p class="muted">Diese Datei wird dauerhaft aus der ausgewählten Bot-Instanz entfernt.</p>
+        <div id="fileDeleteTarget" class="confirm-hint"></div>
+        <div class="confirm-actions">
+          <button id="cancelFileDeleteButton" class="button ghost" type="button">Abbrechen</button>
+          <button id="confirmFileDeleteButton" class="button danger" type="button">Datei löschen</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=20261002-2" defer></script>
+  <script src="/app.js?v=20261002-3" defer></script>
 </body>
 </html>
