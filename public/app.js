@@ -767,7 +767,7 @@ $('#logoutButton').addEventListener('click', async () => {
 });
 
 $('#refreshButton').addEventListener('click', refresh);
-$('#openUploadButton').addEventListener('click', openUploadDialog);
+$('#openUploadButton').addEventListener('click', () => openUploadDialog());
 $('#chooseUploadFilesButton').addEventListener('click', () => $('#uploadFileInput').click());
 $('#uploadFileInput').addEventListener('change', (event) => addUploadFiles(event.target.files));
 $('#uploadFileList').addEventListener('click', (event) => {
