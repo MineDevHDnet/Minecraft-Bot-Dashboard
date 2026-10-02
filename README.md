@@ -33,6 +33,8 @@ Web-Dashboard für die Minecraft-Bots auf dem Rootserver. Es ist auf die bestehe
 
 Die LabyCrafter-Einstellungen werden in der bereits unterstützten Datei `.minecraft/LabyCrafter/headless.properties` gespeichert. Eine Änderung von Material oder Profil startet nur diese eine Instanz neu, damit LabyCrafter die neue Startup-Auswahl lädt.
 
+Datei-Uploads für LabyMod-Addons verwenden die echten Instanzpfade `.minecraft/LabyMod/addons-1.8` bzw. `.minecraft/LabyMod/addons-1.12.2`. Nach dem atomaren Kopieren wird die Dateigröße serverseitig verifiziert.
+
 ## Installation
 
 Der DNS-A/AAAA-Record von `bot-cloud.de` sollte bereits auf den Rootserver zeigen. Danach auf dem Minecraft-Server:
