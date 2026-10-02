@@ -11,7 +11,7 @@ BOTS=(
 )
 
 usage() {
-  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|log-summary|clear-logs|craft-config|craft-update|upload|system-summary> [args]" >&2
+  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|log-summary|clear-logs|craft-config|craft-update|upload|files-list|file-delete|system-summary> [args]" >&2
   exit 2
 }
 
@@ -204,6 +204,110 @@ case "$cmd" in
     done
     printf 'files=%s\n' "$files"
     printf 'bytes=%s\n' "$bytes"
+    ;;
+
+  files-list)
+    [[ $# -eq 3 ]] || usage
+    id="$2"; target_rel="$3"
+    require_bot "$id"
+    mc="$(mc_dir "$id")"
+    [[ -d "$mc" ]] || { echo "Bot instance not installed: $id" >&2; exit 3; }
+
+    python3 - "$mc" "$target_rel" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1]).resolve()
+rel = sys.argv[2].strip().replace("\\", "/").strip("/")
+
+parts = [] if not rel else rel.split("/")
+if any(not part or part in {".", ".."} for part in parts):
+    raise SystemExit("Invalid file browser path")
+
+target = root.joinpath(*parts).resolve(strict=False)
+try:
+    target.relative_to(root)
+except ValueError:
+    raise SystemExit("File browser path escapes bot directory")
+
+if not target.exists():
+    raise SystemExit("Directory does not exist")
+if not target.is_dir():
+    raise SystemExit("File browser path is not a directory")
+
+items = []
+for entry in target.iterdir():
+    try:
+        if entry.is_symlink():
+            continue
+        stat = entry.stat()
+        if entry.is_dir():
+            kind = "directory"
+            size = 0
+        elif entry.is_file():
+            kind = "file"
+            size = stat.st_size
+        else:
+            continue
+        child_rel = entry.relative_to(root).as_posix()
+        items.append({
+            "name": entry.name,
+            "path": child_rel,
+            "type": kind,
+            "size": size,
+            "mtime": int(stat.st_mtime),
+        })
+    except (OSError, ValueError):
+        continue
+
+items.sort(key=lambda item: (item["type"] != "directory", item["name"].lower()))
+if len(items) > 1000:
+    items = items[:1000]
+
+print(json.dumps({
+    "path": "" if target == root else target.relative_to(root).as_posix(),
+    "items": items,
+}, ensure_ascii=False))
+PY
+    ;;
+
+  file-delete)
+    [[ $# -eq 3 ]] || usage
+    id="$2"; target_rel="$3"
+    require_bot "$id"
+    mc="$(mc_dir "$id")"
+    [[ -d "$mc" ]] || { echo "Bot instance not installed: $id" >&2; exit 3; }
+
+    python3 - "$mc" "$target_rel" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1]).resolve()
+rel = sys.argv[2].strip().replace("\\", "/").strip("/")
+if not rel:
+    raise SystemExit("File path is required")
+
+parts = rel.split("/")
+if any(not part or part in {".", ".."} for part in parts):
+    raise SystemExit("Invalid file path")
+
+target = root.joinpath(*parts).resolve(strict=False)
+try:
+    target.relative_to(root)
+except ValueError:
+    raise SystemExit("File path escapes bot directory")
+
+if not target.exists():
+    raise SystemExit("File does not exist")
+if target.is_symlink() or not target.is_file():
+    raise SystemExit("Only regular files can be deleted")
+
+size = target.stat().st_size
+target.unlink()
+print(json.dumps({"deleted": rel, "bytes": size}, ensure_ascii=False))
+PY
     ;;
 
   upload)

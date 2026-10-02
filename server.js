@@ -129,13 +129,11 @@ function readBody(req) {
 }
 
 function validUploadTarget(value) {
-  const target = String(value || '').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  if (!target) return '';
-  if (target.length > 180 || target.includes('\0')) throw new Error('invalid_upload_target');
-  const parts = target.split('/');
-  if (parts.some((part) => !part || part === '.' || part === '..')) throw new Error('invalid_upload_target');
-  if (!/^[A-Za-z0-9._ /-]+$/.test(target)) throw new Error('invalid_upload_target');
-  return target;
+  try {
+    return validFileManagerPath(value, true);
+  } catch {
+    throw new Error('invalid_upload_target');
+  }
 }
 
 function validUploadFileName(value) {
@@ -144,6 +142,24 @@ function validUploadFileName(value) {
     throw new Error('invalid_upload_filename');
   }
   return name;
+}
+
+function validFileManagerPath(value, allowEmpty = true) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    if (allowEmpty) return '';
+    throw new Error('invalid_file_path');
+  }
+  if (raw.length > 600 || raw.includes('\0') || /[\x00-\x1f]/.test(raw)) {
+    throw new Error('invalid_file_path');
+  }
+  if (/^[\\/]/.test(raw)) throw new Error('invalid_file_path');
+  const normalized = raw.replace(/\\/g, '/').replace(/\/+$/g, '');
+  const parts = normalized.split('/');
+  if (parts.some((part) => !part || part === '.' || part === '..')) {
+    throw new Error('invalid_file_path');
+  }
+  return normalized;
 }
 
 function receiveUpload(req) {
@@ -400,12 +416,18 @@ const server = http.createServer(async (req, res) => {
           throw error;
         }
         const copied = [];
+        const destinations = [];
         const failed = [];
 
         for (const bot of bots) {
           try {
-            runControl(['upload', bot.id, upload.file, target, fileName], 60000);
+            const result = parseKV(runControl(['upload', bot.id, upload.file, target, fileName], 60000));
             copied.push(bot.id);
+            destinations.push({
+              id: bot.id,
+              path: [target, fileName].filter(Boolean).join('/'),
+              bytes: num(result.bytes || upload.bytes),
+            });
           } catch (error) {
             failed.push({ id: bot.id, message: String(error.message || error) });
           }
@@ -418,6 +440,7 @@ const server = http.createServer(async (req, res) => {
             target,
             bytes: upload.bytes,
             copied,
+            destinations,
             failed,
           });
         }
@@ -428,10 +451,64 @@ const server = http.createServer(async (req, res) => {
           target,
           bytes: upload.bytes,
           copied,
+          destinations,
         });
       } finally {
         if (upload) await upload.cleanup();
       }
+    }
+
+    const filesMatch = pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/files$/);
+    if (req.method === 'GET' && filesMatch) {
+      const bot = BOT_MAP.get(filesMatch[1]);
+      if (!bot) return json(res, 404, { error: 'unknown_bot' });
+
+      let target;
+      try {
+        target = validFileManagerPath(url.searchParams.get('path') || '', true);
+      } catch (error) {
+        return json(res, 400, { error: error.message });
+      }
+
+      const raw = runControl(['files-list', bot.id, target], 10000);
+      let listing;
+      try {
+        listing = JSON.parse(raw || '{}');
+      } catch {
+        throw new Error('invalid_file_listing');
+      }
+      return json(res, 200, {
+        bot: bot.id,
+        path: String(listing.path || ''),
+        items: Array.isArray(listing.items) ? listing.items : [],
+      });
+    }
+
+    const fileDeleteMatch = pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/files\/delete$/);
+    if (req.method === 'POST' && fileDeleteMatch) {
+      const bot = BOT_MAP.get(fileDeleteMatch[1]);
+      if (!bot) return json(res, 404, { error: 'unknown_bot' });
+
+      const body = await readBody(req);
+      let target;
+      try {
+        target = validFileManagerPath(body.path, false);
+      } catch (error) {
+        return json(res, 400, { error: error.message });
+      }
+
+      const raw = runControl(['file-delete', bot.id, target], 10000);
+      let result;
+      try {
+        result = JSON.parse(raw || '{}');
+      } catch {
+        throw new Error('invalid_delete_result');
+      }
+      return json(res, 200, {
+        ok: true,
+        deleted: String(result.deleted || target),
+        bytes: num(result.bytes),
+      });
     }
 
     if (req.method === 'GET' && pathname === '/api/logs/summary') {
