@@ -352,11 +352,11 @@ function uploadTarget() {
 
 function validClientUploadTarget(target) {
   if (!target) return true;
-  if (target.length > 180 || !/^[A-Za-z0-9._ /-]+$/.test(target)) return false;
-  return !target.split('/').some((part) => !part || part === '.' || part === '..');
+  if (target.length > 600 || /^[\\/]/.test(target) || /[\x00-\x1f]/.test(target)) return false;
+  return !target.replace(/\\/g, '/').split('/').some((part) => !part || part === '.' || part === '..');
 }
 
-function openUploadDialog() {
+function openUploadDialog(options = {}) {
   const bots = snapshot?.bots || [];
   if (!bots.length) {
     toast('Es sind aktuell keine installierten Bots verfügbar.', true);
@@ -365,10 +365,15 @@ function openUploadDialog() {
 
   uploadFiles = [];
   uploadBusy = false;
+  uploadReturnToFiles = options.returnToFiles || null;
   renderUploadFiles();
-  $('#uploadTargetPreset').value = '';
-  $('#customUploadTarget').value = '';
-  $('#customUploadTargetWrap').classList.add('hidden');
+
+  const requestedTarget = String(options.target || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const presetValues = ['', 'mods', 'LabyMod/addons-1.8', 'LabyMod/addons-1.12.2'];
+  const preset = presetValues.includes(requestedTarget) ? requestedTarget : 'custom';
+  $('#uploadTargetPreset').value = preset;
+  $('#customUploadTarget').value = requestedTarget;
+  $('#customUploadTargetWrap').classList.toggle('hidden', preset !== 'custom');
   $('#uploadProgressWrap').classList.add('hidden');
   $('#uploadProgressBar').style.width = '0%';
   $('#uploadProgressPercent').textContent = '0%';
@@ -376,9 +381,10 @@ function openUploadDialog() {
   $('#startUploadButton').disabled = false;
   $('#cancelUploadButton').disabled = false;
 
+  const requestedBots = new Set(Array.isArray(options.botIds) ? options.botIds : []);
   $('#uploadBotList').innerHTML = bots.map((bot) => `
     <label class="upload-bot-option">
-      <input type="checkbox" value="${escapeHtml(bot.id)}">
+      <input type="checkbox" value="${escapeHtml(bot.id)}" ${requestedBots.has(bot.id) ? 'checked' : ''}>
       <span class="upload-checkmark"></span>
       <span class="upload-bot-copy">
         <strong>${escapeHtml(bot.name)}</strong>
@@ -393,6 +399,9 @@ function openUploadDialog() {
 function closeUploadDialog() {
   if (uploadBusy) return;
   uploadModal.classList.add('hidden');
+  const returnTarget = uploadReturnToFiles;
+  uploadReturnToFiles = null;
+  if (returnTarget) openFileManager(returnTarget.botId, returnTarget.path);
 }
 
 function uploadSingleFile(file, botIds, target, fileIndex, totalFiles) {
@@ -472,8 +481,9 @@ async function startUpload() {
   $('#uploadProgressWrap').classList.remove('hidden');
 
   try {
+    const uploadResults = [];
     for (let index = 0; index < uploadFiles.length; index += 1) {
-      await uploadSingleFile(uploadFiles[index], botIds, target, index, uploadFiles.length);
+      uploadResults.push(await uploadSingleFile(uploadFiles[index], botIds, target, index, uploadFiles.length));
       const percent = Math.round(((index + 1) / uploadFiles.length) * 100);
       $('#uploadProgressBar').style.width = `${percent}%`;
       $('#uploadProgressPercent').textContent = `${percent}%`;
@@ -484,7 +494,18 @@ async function startUpload() {
     const botCount = botIds.length;
     uploadBusy = false;
     uploadModal.classList.add('hidden');
-    toast(`${fileCount} Datei${fileCount === 1 ? '' : 'en'} an ${botCount} Bot${botCount === 1 ? '' : 's'} hochgeladen.`);
+
+    const destinations = uploadResults.flatMap((result) =>
+      Array.isArray(result.destinations) ? result.destinations : []);
+    if (destinations.length === 1) {
+      toast(`Upload geprüft: ${destinations[0].id} → .minecraft/${destinations[0].path}`);
+    } else {
+      toast(`${fileCount} Datei${fileCount === 1 ? '' : 'en'} an ${botCount} Bot${botCount === 1 ? '' : 's'} hochgeladen und geprüft.`);
+    }
+
+    const returnTarget = uploadReturnToFiles;
+    uploadReturnToFiles = null;
+    if (returnTarget) openFileManager(returnTarget.botId, returnTarget.path);
   } catch (error) {
     $('#uploadProgressText').textContent = `Fehler: ${error.message}`;
     toast(error.message, true);
@@ -494,6 +515,121 @@ async function startUpload() {
     $('#cancelUploadButton').disabled = false;
     $('#chooseUploadFilesButton').disabled = false;
     $('#toggleAllUploadBotsButton').disabled = false;
+  }
+}
+
+function parentFileManagerPath(path) {
+  const parts = String(path || '').split('/').filter(Boolean);
+  parts.pop();
+  return parts.join('/');
+}
+
+function closeFileManager() {
+  fileManagerModal.classList.add('hidden');
+  fileManagerBotId = null;
+  fileManagerPath = '';
+}
+
+async function openFileManager(botId, path = '') {
+  const bot = snapshot?.bots.find((item) => item.id === botId);
+  if (!bot) return;
+
+  fileManagerBotId = botId;
+  fileManagerPath = String(path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  $('#fileManagerEyebrow').textContent = `Dateiverwaltung · ${bot.label}`;
+  $('#fileManagerTitle').textContent = bot.name;
+  fileManagerModal.classList.remove('hidden');
+  await loadFileManager(fileManagerPath);
+}
+
+async function loadFileManager(path = fileManagerPath) {
+  if (!fileManagerBotId) return;
+
+  const hint = $('#fileManagerHint');
+  const list = $('#fileManagerList');
+  hint.textContent = 'Lade Verzeichnis …';
+  hint.classList.remove('error');
+  list.innerHTML = '';
+  $('#fileManagerRefreshButton').disabled = true;
+  $('#fileManagerUpButton').disabled = true;
+  $('#fileManagerUploadButton').disabled = true;
+
+  try {
+    const data = await api(`/api/bots/${fileManagerBotId}/files?path=${encodeURIComponent(path || '')}`);
+    fileManagerPath = String(data.path || '');
+    $('#fileManagerPath').textContent = fileManagerPath || '.';
+    $('#fileManagerUpButton').disabled = !fileManagerPath;
+    $('#fileManagerUploadButton').disabled = false;
+
+    const items = Array.isArray(data.items) ? data.items : [];
+    hint.textContent = `${items.length} Eintrag${items.length === 1 ? '' : 'e'} · Upload-Ziel: .minecraft/${fileManagerPath || ''}`;
+
+    if (!items.length) {
+      list.innerHTML = '<div class="upload-empty">Dieser Ordner ist leer.</div>';
+      return;
+    }
+
+    list.innerHTML = items.map((item) => {
+      const isDir = item.type === 'directory';
+      const modified = item.mtime ? new Date(Number(item.mtime) * 1000).toLocaleString('de-DE') : '–';
+      return `<div class="file-manager-row" data-file-path="${escapeHtml(item.path)}" data-file-name="${escapeHtml(item.name)}" data-file-type="${escapeHtml(item.type)}" data-file-size="${Number(item.size || 0)}">
+        <div class="file-manager-icon">${isDir ? '▣' : '·'}</div>
+        <div class="file-manager-name">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${isDir ? 'Ordner' : formatBytes(item.size)}</span>
+        </div>
+        <div class="file-manager-meta">${escapeHtml(modified)}</div>
+        ${isDir
+          ? '<button class="button ghost file-manager-open" type="button" data-open-file-dir>Öffnen</button>'
+          : '<button class="button danger file-manager-delete" type="button" data-delete-file>Datei löschen</button>'}
+      </div>`;
+    }).join('');
+  } catch (error) {
+    hint.textContent = `Verzeichnis konnte nicht geladen werden: ${error.message}`;
+    hint.classList.add('error');
+    list.innerHTML = '';
+  } finally {
+    $('#fileManagerRefreshButton').disabled = false;
+  }
+}
+
+function requestFileDelete(row) {
+  if (!fileManagerBotId || !row) return;
+  pendingFileDelete = {
+    botId: fileManagerBotId,
+    path: row.dataset.filePath,
+    name: row.dataset.fileName,
+    size: Number(row.dataset.fileSize || 0),
+  };
+  $('#fileDeleteTarget').textContent =
+    `.minecraft/${pendingFileDelete.path} · ${formatBytes(pendingFileDelete.size)}`;
+  $('#confirmFileDeleteButton').disabled = false;
+  fileDeleteModal.classList.remove('hidden');
+}
+
+function closeFileDeleteDialog() {
+  fileDeleteModal.classList.add('hidden');
+  pendingFileDelete = null;
+}
+
+async function confirmFileDelete() {
+  if (!pendingFileDelete) return;
+  const target = { ...pendingFileDelete };
+  const button = $('#confirmFileDeleteButton');
+  button.disabled = true;
+
+  try {
+    const result = await api(`/api/bots/${target.botId}/files/delete`, {
+      method: 'POST',
+      body: JSON.stringify({ path: target.path }),
+    });
+    fileDeleteModal.classList.add('hidden');
+    pendingFileDelete = null;
+    toast(`${target.name} gelöscht · ${formatBytes(result.bytes)} freigegeben`);
+    await loadFileManager(fileManagerPath);
+  } catch (error) {
+    toast(`Datei konnte nicht gelöscht werden: ${error.message}`, true);
+    button.disabled = false;
   }
 }
 
