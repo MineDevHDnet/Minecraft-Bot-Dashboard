@@ -129,13 +129,11 @@ function readBody(req) {
 }
 
 function validUploadTarget(value) {
-  const target = String(value || '').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  if (!target) return '';
-  if (target.length > 180 || target.includes('\0')) throw new Error('invalid_upload_target');
-  const parts = target.split('/');
-  if (parts.some((part) => !part || part === '.' || part === '..')) throw new Error('invalid_upload_target');
-  if (!/^[A-Za-z0-9._ /-]+$/.test(target)) throw new Error('invalid_upload_target');
-  return target;
+  try {
+    return validFileManagerPath(value, true);
+  } catch {
+    throw new Error('invalid_upload_target');
+  }
 }
 
 function validUploadFileName(value) {
