@@ -57,7 +57,7 @@ if [[ -f "$NGINX_SITE" ]]; then
     sed -i '/client_max_body_size /a\    client_body_timeout 120s;' "$NGINX_SITE"
   fi
 
-  sed -i -E 's/^[[:space:]]*proxy_read_timeout[[:space:]]+30s;/        proxy_read_timeout 120s;/' "$NGINX_SITE"
+  sed -i -E 's/^[[:space:]]*proxy_read_timeout[[:space:]]+[^;]+;/        proxy_read_timeout 600s;/' "$NGINX_SITE"
 fi
 nginx -t
 systemctl reload nginx
