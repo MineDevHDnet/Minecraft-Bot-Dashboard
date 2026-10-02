@@ -264,6 +264,10 @@ try:
     except KeyError:
         raise SystemExit("minecraft-root user/group missing")
     os.replace(temporary, destination)
+    expected_size = source.stat().st_size
+    actual_size = destination.stat().st_size
+    if actual_size != expected_size:
+        raise SystemExit(f"Upload verification failed: expected {expected_size} bytes, got {actual_size}")
 finally:
     try:
         temporary.unlink(missing_ok=True)
@@ -271,6 +275,7 @@ finally:
         pass
 
 print(f"uploaded={destination}")
+print(f"bytes={destination.stat().st_size}")
 PY
     ;;
 
