@@ -11,7 +11,7 @@ BOTS=(
 )
 
 usage() {
-  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|log-summary|clear-logs|craft-config|craft-update|system-summary> [args]" >&2
+  echo "Usage: minecraft-dashboardctl <status|start|stop|restart|logs|log-summary|clear-logs|craft-config|craft-update|upload|system-summary> [args]" >&2
   exit 2
 }
 
@@ -204,6 +204,74 @@ case "$cmd" in
     done
     printf 'files=%s\n' "$files"
     printf 'bytes=%s\n' "$bytes"
+    ;;
+
+  upload)
+    [[ $# -eq 5 ]] || usage
+    id="$2"; source_file="$3"; target_rel="$4"; file_name="$5"
+    require_bot "$id"
+    mc="$(mc_dir "$id")"
+    [[ -d "$mc" ]] || { echo "Bot instance not installed: $id" >&2; exit 3; }
+    [[ -f "$source_file" ]] || { echo "Upload source missing" >&2; exit 3; }
+
+    python3 - "$mc" "$source_file" "$target_rel" "$file_name" <<'PY'
+import os
+import pathlib
+import shutil
+import sys
+import tempfile
+
+mc = pathlib.Path(sys.argv[1]).resolve()
+source = pathlib.Path(sys.argv[2])
+target_rel = sys.argv[3].strip().replace("\\", "/").strip("/")
+file_name = sys.argv[4].strip()
+
+if not file_name or file_name in {".", ".."} or "/" in file_name or "\\" in file_name or "\x00" in file_name:
+    raise SystemExit("Invalid upload filename")
+if len(file_name) > 180:
+    raise SystemExit("Upload filename too long")
+
+parts = [] if not target_rel else target_rel.split("/")
+if any(not p or p in {".", ".."} for p in parts):
+    raise SystemExit("Invalid upload target")
+
+target_dir = mc.joinpath(*parts).resolve(strict=False)
+try:
+    target_dir.relative_to(mc)
+except ValueError:
+    raise SystemExit("Upload target escapes bot directory")
+
+target_dir.mkdir(parents=True, exist_ok=True)
+target_dir = target_dir.resolve()
+try:
+    target_dir.relative_to(mc)
+except ValueError:
+    raise SystemExit("Upload target escapes bot directory")
+
+destination = target_dir / file_name
+fd, temporary_name = tempfile.mkstemp(prefix=".dashboard-upload-", dir=str(target_dir))
+os.close(fd)
+temporary = pathlib.Path(temporary_name)
+
+try:
+    shutil.copyfile(source, temporary)
+    os.chmod(temporary, 0o644)
+    try:
+        import pwd, grp
+        uid = pwd.getpwnam("minecraft-root").pw_uid
+        gid = grp.getgrnam("minecraft-root").gr_gid
+        os.chown(temporary, uid, gid)
+    except KeyError:
+        raise SystemExit("minecraft-root user/group missing")
+    os.replace(temporary, destination)
+finally:
+    try:
+        temporary.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+print(f"uploaded={destination}")
+PY
     ;;
 
   craft-config)
