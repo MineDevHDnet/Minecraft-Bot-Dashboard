@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b0f17">
   <title>Bot Cloud</title>
-  <link rel="stylesheet" href="/app.css?v=20261001-2">
+  <link rel="stylesheet" href="/app.css?v=20261002-1">
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -51,6 +51,7 @@
           <h2>Bot-Übersicht</h2>
         </div>
         <div class="top-actions">
+          <button id="openUploadButton" class="button primary" type="button">Dateien hochladen</button>
           <button id="clearAllLogsButton" class="button danger" type="button">Alle Logs löschen</button>
           <span class="refresh-label">Update in <strong id="refreshCountdown">5</strong>s</span>
           <button id="refreshButton" class="icon-button" title="Jetzt aktualisieren" aria-label="Jetzt aktualisieren">↻</button>
@@ -135,7 +136,73 @@
     </section>
   </div>
 
+  <div id="uploadModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="uploadTitle">
+    <div class="modal-backdrop" data-close-upload></div>
+    <section class="modal-card upload-card">
+      <header class="modal-head">
+        <div>
+          <p class="eyebrow">Dateiverteilung</p>
+          <h3 id="uploadTitle">Dateien an Bots hochladen</h3>
+        </div>
+        <button class="icon-button" data-close-upload aria-label="Schließen">×</button>
+      </header>
+      <div class="upload-content">
+        <div id="uploadDropZone" class="upload-drop-zone" tabindex="0">
+          <input id="uploadFileInput" type="file" multiple hidden>
+          <strong>Dateien auswählen oder hier ablegen</strong>
+          <span>Mehrere Dateien sind möglich · maximal 256 MB pro Datei</span>
+          <button id="chooseUploadFilesButton" class="button secondary" type="button">Dateien auswählen</button>
+        </div>
+
+        <div id="uploadFileList" class="upload-file-list">
+          <div class="upload-empty">Noch keine Dateien ausgewählt.</div>
+        </div>
+
+        <div class="upload-section-head">
+          <div>
+            <strong>Ziel-Bots</strong>
+            <span>Die Dateien werden in jede ausgewählte Instanz kopiert.</span>
+          </div>
+          <button id="toggleAllUploadBotsButton" class="button ghost" type="button">Alle auswählen</button>
+        </div>
+        <div id="uploadBotList" class="upload-bot-list"></div>
+
+        <div class="upload-target-grid">
+          <div>
+            <label for="uploadTargetPreset">Zielordner in .minecraft</label>
+            <select id="uploadTargetPreset">
+              <option value="">.minecraft (Hauptordner)</option>
+              <option value="mods">mods</option>
+              <option value="addons-1.8">addons-1.8</option>
+              <option value="addons-1.12.2">addons-1.12.2</option>
+              <option value="custom">Eigener Unterordner …</option>
+            </select>
+          </div>
+          <div id="customUploadTargetWrap" class="hidden">
+            <label for="customUploadTarget">Relativer Unterordner</label>
+            <input id="customUploadTarget" type="text" maxlength="180" placeholder="z. B. LabyCrafter/config">
+          </div>
+        </div>
+
+        <div class="upload-warning">Gleichnamige Dateien im Ziel werden überschrieben. Pfade außerhalb der Bot-.minecraft-Verzeichnisse sind gesperrt.</div>
+
+        <div id="uploadProgressWrap" class="upload-progress-wrap hidden">
+          <div class="upload-progress-head">
+            <span id="uploadProgressText">Upload wird vorbereitet …</span>
+            <strong id="uploadProgressPercent">0%</strong>
+          </div>
+          <div class="upload-progress-track"><div id="uploadProgressBar" class="upload-progress-bar"></div></div>
+        </div>
+
+        <div class="confirm-actions">
+          <button id="cancelUploadButton" class="button ghost" type="button">Abbrechen</button>
+          <button id="startUploadButton" class="button primary" type="button">Upload starten</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=20261002-1" defer></script>
+  <script src="/app.js?v=20261002-2" defer></script>
 </body>
 </html>
