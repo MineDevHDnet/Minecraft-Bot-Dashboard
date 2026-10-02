@@ -279,7 +279,7 @@ PY
     [[ "$2" == "mangoskanone" || "$2" == "gamecasino" ]] || { echo "Not a LabyCrafter bot" >&2; exit 2; }
     cfg="$(mc_dir "$2")/LabyCrafter/headless.properties"
     if [[ -f "$cfg" ]]; then
-      grep -E '^(autoCraftMaterial|autoCraftMode|autoCraftOnJoinEnabled|autoJoinServerSelection|autoJoinHome)=' "$cfg" || true
+      grep -E '^(autoCraftMaterial|autoCraftSelection|autoCraftMode|autoCraftOnJoinEnabled|autoJoinServerSelection|autoJoinHome)=' "$cfg" || true
     fi
     ;;
 
@@ -294,7 +294,25 @@ PY
     [[ "$home" =~ ^/[A-Za-z0-9_./\ -]{1,79}$ ]] || { echo "Invalid home" >&2; exit 2; }
     cfg="$(mc_dir "$id")/LabyCrafter/headless.properties"
     [[ -d "$(dirname "$cfg")" ]] || mkdir -p "$(dirname "$cfg")"
+
+    # LabyCrafter internally uses the English raw-stone recipe names. The
+    # dashboard accepts the German names users naturally enter, while writing
+    # an explicit canonical selection as a compatibility fallback for older
+    # addon builds. This also prevents a stale Diorite selection from surviving
+    # an Andesit profile change.
+    canonical_selection=""
+    if [[ "$mode" == "WORKBENCH" ]]; then
+      case "$(printf '%s' "$material" | tr '[:upper:]' '[:lower:]')" in
+        andesit|andesite) canonical_selection="Andesite" ;;
+        diorit|diorite) canonical_selection="Diorite" ;;
+        granit|granite) canonical_selection="Granite" ;;
+      esac
+    fi
+
     set_property "$cfg" autoCraftMaterial "$material"
+    # Always write the compatibility key, even when empty, so a previous
+    # autoCraftSelection (for example Diorite) cannot survive a profile change.
+    set_property "$cfg" autoCraftSelection "$canonical_selection"
     set_property "$cfg" autoCraftMode "$mode"
     set_property "$cfg" autoCraftOnJoinEnabled true
     set_property "$cfg" autoJoinServerSelection "$target"
