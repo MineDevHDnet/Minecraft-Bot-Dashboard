@@ -249,6 +249,7 @@ async function openBot(id, loadLogs = true) {
       <button class="button primary" data-modal-action="start">Start</button>
       <button class="button secondary" data-modal-action="restart">Restart</button>
       <button class="button danger" data-modal-action="stop">Stop</button>
+      <button class="button ghost" id="openBotFilesButton" type="button">Dateien</button>
     </div>
     ${crafter}
     <section class="logs-panel">
@@ -260,6 +261,7 @@ async function openBot(id, loadLogs = true) {
 
   if (loadLogs) loadBotLogs(id);
   $('#reloadLogs')?.addEventListener('click', () => loadBotLogs(id));
+  $('#openBotFilesButton')?.addEventListener('click', () => openFileManager(id));
   modalContent.querySelectorAll('[data-modal-action]').forEach((button) => {
     button.addEventListener('click', () => requestBotAction(id, button.dataset.modalAction));
   });
@@ -786,6 +788,32 @@ $('#uploadTargetPreset').addEventListener('change', (event) => {
 });
 $('#startUploadButton').addEventListener('click', startUpload);
 $('#cancelUploadButton').addEventListener('click', closeUploadDialog);
+$('#fileManagerUpButton').addEventListener('click', () => {
+  if (!fileManagerBotId || !fileManagerPath) return;
+  loadFileManager(parentFileManagerPath(fileManagerPath));
+});
+$('#fileManagerRefreshButton').addEventListener('click', () => loadFileManager(fileManagerPath));
+$('#fileManagerUploadButton').addEventListener('click', () => {
+  if (!fileManagerBotId) return;
+  const returnTarget = { botId: fileManagerBotId, path: fileManagerPath };
+  fileManagerModal.classList.add('hidden');
+  openUploadDialog({
+    botIds: [fileManagerBotId],
+    target: fileManagerPath,
+    returnToFiles: returnTarget,
+  });
+});
+$('#fileManagerList').addEventListener('click', (event) => {
+  const row = event.target.closest('[data-file-path]');
+  if (!row) return;
+  if (event.target.closest('[data-open-file-dir]')) {
+    loadFileManager(row.dataset.filePath);
+    return;
+  }
+  if (event.target.closest('[data-delete-file]')) requestFileDelete(row);
+});
+$('#confirmFileDeleteButton').addEventListener('click', confirmFileDelete);
+$('#cancelFileDeleteButton').addEventListener('click', closeFileDeleteDialog);
 $('#clearAllLogsButton').addEventListener('click', openLogDeleteDialog);
 $('#confirmLogDeleteButton').addEventListener('click', confirmClearAllLogs);
 $('#cancelLogDeleteButton').addEventListener('click', closeLogDeleteDialog);
@@ -822,6 +850,14 @@ uploadModal.addEventListener('click', (event) => {
   if (event.target.matches('[data-close-upload]')) closeUploadDialog();
 });
 
+fileManagerModal.addEventListener('click', (event) => {
+  if (event.target.matches('[data-close-file-manager]')) closeFileManager();
+});
+
+fileDeleteModal.addEventListener('click', (event) => {
+  if (event.target.matches('[data-close-file-delete]')) closeFileDeleteDialog();
+});
+
 const uploadDropZone = $('#uploadDropZone');
 ['dragenter', 'dragover'].forEach((name) => {
   uploadDropZone.addEventListener(name, (event) => {
@@ -847,8 +883,16 @@ uploadDropZone.addEventListener('keydown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  if (!fileDeleteModal.classList.contains('hidden')) {
+    closeFileDeleteDialog();
+    return;
+  }
   if (!uploadModal.classList.contains('hidden')) {
     closeUploadDialog();
+    return;
+  }
+  if (!fileManagerModal.classList.contains('hidden')) {
+    closeFileManager();
     return;
   }
   if (!actionConfirmModal.classList.contains('hidden')) {
