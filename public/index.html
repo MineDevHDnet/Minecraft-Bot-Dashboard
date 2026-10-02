@@ -114,7 +114,28 @@
     </section>
   </div>
 
+  <div id="actionConfirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="actionConfirmTitle">
+    <div class="modal-backdrop" data-close-action-confirm></div>
+    <section class="modal-card confirm-card">
+      <header class="modal-head">
+        <div>
+          <p id="actionConfirmEyebrow" class="eyebrow">Bot-Aktion</p>
+          <h3 id="actionConfirmTitle">Aktion bestätigen?</h3>
+        </div>
+        <button class="icon-button" data-close-action-confirm aria-label="Schließen">×</button>
+      </header>
+      <div class="confirm-content">
+        <p id="actionConfirmText" class="muted">Möchtest du diese Aktion wirklich ausführen?</p>
+        <div class="confirm-hint">Die Aktion wird erst ausgeführt, nachdem du sie hier ausdrücklich bestätigt hast.</div>
+        <div class="confirm-actions">
+          <button id="cancelBotActionButton" class="button ghost" type="button">Abbrechen</button>
+          <button id="confirmBotActionButton" class="button danger" type="button">Bestätigen</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=20261001-2" defer></script>
+  <script src="/app.js?v=20261002-1" defer></script>
 </body>
 </html>
